@@ -1,0 +1,53 @@
+pipeline {
+    agent any
+
+    environment {
+        REPO_URL   = 'https://github.com/ArvidaTech/build-demo.git'
+        WAR_FILE   = 'hello-world-war-1.0.0.war'
+        APP_PATH   = 'hello'
+        TOMCAT_URL = 'http://localhost:8081'
+    }
+
+    options {
+        timeout(time: 20, unit: 'MINUTES')
+        disableConcurrentBuilds()
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main', url: "${REPO_URL}"
+            }
+        }
+        stage('Build') {
+            steps {
+                sh 'mvn -B clean package'
+            }
+        }
+        stage('Archive WAR') {
+            steps {
+                archiveArtifacts artifacts: 'target/*.war', fingerprint: true
+            }
+        }
+        stage('Deploy to Tomcat') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'tomcat-deployer',
+                    usernameVariable: 'TC_USER',
+                    passwordVariable: 'TC_PASS')]) {
+                    sh 'curl -f -u $TC_USER:$TC_PASS -T target/$WAR_FILE "$TOMCAT_URL/manager/text/deploy?path=/$APP_PATH&update=true"'
+                }
+            }
+        }
+        stage('Verify') {
+            steps {
+                sh 'curl -f "$TOMCAT_URL/$APP_PATH/"'
+            }
+        }
+    }
+
+    post {
+        success { echo 'SUCCESS: deployed' }
+        failure { echo 'FAILURE: check the first red error in the stage logs' }
+    }
+}
