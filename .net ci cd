@@ -1,1 +1,104 @@
+name: .NET CI
 
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Sonar scanner
+        run: dotnet tool install --global dotnet-sonarscanner
+
+      - name: Sonar begin
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: >
+          dotnet sonarscanner begin
+          /k:"VaishnaviAgarwal-29_StudentManagementSystem"
+          /o:"vaishnaviagarwal-29"
+          /d:sonar.token="$SONAR_TOKEN"
+          /d:sonar.host.url="https://sonarcloud.io"
+
+      - name: Restore dependencies
+        run: dotnet restore StudentAPI/StudentAPI/StudentAPI/StudentAPI.csproj
+
+      - name: Build
+        run: dotnet build StudentAPI/StudentAPI/StudentAPI/StudentAPI.csproj --configuration Release --no-restore
+
+      - name: Run tests
+        run: dotnet test StudentAPI/StudentAPI/StudentAPI.Tests/StudentAPI.Tests.csproj --configuration Release
+
+      - name: Sonar end
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"
+
+      - name: Publish
+        run: dotnet publish StudentAPI/StudentAPI/StudentAPI/StudentAPI.csproj --configuration Release --no-build --output publish
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dotnet-app
+          path: publish
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dotnet-app
+          path: app
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Start app
+        run: |
+          cd app
+          ASPNETCORE_URLS=http://localhost:5000 nohup dotnet StudentAPI.dll > ../app.log 2>&1 &
+          sleep 15
+
+      - name: Health check
+        run: |
+          for i in $(seq 1 10); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5000/ || true)
+            echo "Attempt $i: HTTP status $code"
+            if [ "$code" != "000" ] && [ "$code" -lt 500 ]; then
+              echo "Health check passed: app is responding"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Health check failed. App log:"
+          cat app.log
+          exit 1
