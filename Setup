@@ -1,0 +1,12 @@
+mkdir -p ~/wl && cd ~/wl
+cat > create_domain.py <<'EOF'
+readTemplate('/u01/oracle/wlserver/common/templates/wls/wls.jar')
+cmo.setName('base_domain')
+setOption('ServerStartMode','dev')
+cd('/Security/base_domain/User/weblogic')
+cmo.setPassword('Welcome123')
+setOption('OverwriteDomain','true')
+writeDomain('/u01/oracle/user_projects/domains/base_domain')
+closeTemplate()
+exit()
+EOF
