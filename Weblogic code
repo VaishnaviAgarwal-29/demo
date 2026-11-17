@@ -18,3 +18,40 @@
           -F "model={ name: 'hello', targets: [ 'AdminServer' ] }" \
           -F "deployment=@${WAR_FILE}" \
           "http://localhost:7001/management/weblogic/latest/edit/appDeployments"
+
+
+
+
+
+    - name: Deploy to WebLogic
+      env:
+        WLS_USER: ${{ secrets.WLS_USER }}
+        WLS_PASSWORD: ${{ secrets.WLS_PASSWORD }}
+      run: |
+        WAR_FILE=$(find . -name "*.war" | head -n 1)
+        echo "Found WAR file: $WAR_FILE"
+        if [ -z "$WAR_FILE" ]; then
+          echo "Error: No WAR file found!"
+          exit 1
+        fi
+        curl -v -u "$WLS_USER:$WLS_PASSWORD" \
+          -H "X-Requested-By: MyClient" \
+          -H "Accept: application/json" \
+          -H "Content-Type: multipart/form-data" \
+          -F 'model={"name":"hello","targets":["AdminServer"]}' \
+          -F "deployment=@${WAR_FILE}" \
+          "http://localhost:7001/management/weblogic/latest/edit/appDeployments"
+
+    - name: Health check
+      run: |
+        for i in $(seq 1 12); do
+          code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/hello/)
+          echo "Attempt $i: HTTP status $code"
+          if [ "$code" -eq 200 ]; then
+            echo "Application is up!"
+            exit 0
+          fi
+          sleep 10
+        done
+        echo "Application failed to start in time."
+        exit 1
