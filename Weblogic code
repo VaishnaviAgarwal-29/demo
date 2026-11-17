@@ -57,3 +57,20 @@
               -targets AdminServer \
               -deploy
           '
+
+
+
+
+      - name: Deploy to WebLogic
+        env:
+          WLS_USER: ${{ secrets.WLS_USER }}
+          WLS_PASSWORD: ${{ secrets.WLS_PASSWORD }}
+        run: |
+          WAR_FILE=$(ls target/*.war | head -n 1)
+          curl -v -u "$WLS_USER:$WLS_PASSWORD" \
+            -H "X-Requested-By: MyClient" \
+            -H "Accept: application/json" \
+            -H "Content-Type: multipart/form-data" \
+            -F "model={ name: 'hello', targets: [ 'AdminServer' ] }" \
+            -F "deployment=@${WAR_FILE}" \
+            "http://localhost:7001/management/weblogic/latest/edit/appDeployments"
