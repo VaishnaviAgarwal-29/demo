@@ -1,0 +1,1 @@
+docker run -d --name weblogic -p 7001:7001 -v ~/wl/create_domain.py:/tmp/create_domain.py container-registry.oracle.com/middleware/weblogic:14.1.2.0-generic-jdk17-ol8-250424 sleep infinity
